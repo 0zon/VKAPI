@@ -1,9 +1,9 @@
 object Form1: TForm1
-  Left = 256
-  Top = 124
-  Width = 490
-  Height = 203
-  Caption = 'demo'
+  Left = 221
+  Top = 122
+  Width = 729
+  Height = 363
+  Caption = 'Test VK API'
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -11,6 +11,10 @@ object Form1: TForm1
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
+  OnCreate = FormCreate
+  DesignSize = (
+    721
+    329)
   PixelsPerInch = 96
   TextHeight = 13
   object Label1: TLabel
@@ -44,7 +48,7 @@ object Form1: TForm1
     Left = 8
     Top = 112
     Width = 161
-    Height = 49
+    Height = 129
     AutoSize = False
     WordWrap = True
   end
@@ -64,12 +68,12 @@ object Form1: TForm1
     TabOrder = 1
   end
   object Button1: TButton
-    Left = 8
+    Left = 96
     Top = 80
     Width = 73
     Height = 25
     Caption = 'Login'
-    TabOrder = 2
+    TabOrder = 5
     OnClick = Button1Click
   end
   object Edit3: TEdit
@@ -78,51 +82,146 @@ object Form1: TForm1
     Width = 121
     Height = 21
     PasswordChar = '*'
-    TabOrder = 3
+    TabOrder = 2
   end
   object Memo1: TMemo
     Left = 176
-    Top = 40
-    Width = 297
-    Height = 121
+    Top = 72
+    Width = 537
+    Height = 249
+    Anchors = [akLeft, akTop, akRight, akBottom]
     ScrollBars = ssVertical
-    TabOrder = 4
-  end
-  object Button2: TButton
-    Left = 176
-    Top = 8
-    Width = 75
-    Height = 25
-    Caption = 'Get friends'
-    TabOrder = 5
-    OnClick = Button2Click
-  end
-  object Button3: TButton
-    Left = 256
-    Top = 8
-    Width = 75
-    Height = 25
-    Caption = 'Get online friends'
-    TabOrder = 6
-    WordWrap = True
-    OnClick = Button3Click
-  end
-  object Button4: TButton
-    Left = 336
-    Top = 8
-    Width = 75
-    Height = 25
-    Caption = 'Get mutual friends'
     TabOrder = 7
-    WordWrap = True
-    OnClick = Button4Click
   end
-  object Edit4: TEdit
-    Left = 416
-    Top = 8
-    Width = 57
-    Height = 21
-    TabOrder = 8
-    Text = '1'
+  object RadioButton1: TRadioButton
+    Left = 8
+    Top = 80
+    Width = 81
+    Height = 17
+    Caption = 'no browser'
+    TabOrder = 3
+    OnClick = RadioButton1Click
+  end
+  object RadioButton2: TRadioButton
+    Left = 8
+    Top = 96
+    Width = 81
+    Height = 17
+    Caption = 'test mode'
+    TabOrder = 4
+    OnClick = RadioButton1Click
+  end
+  object PageControl1: TPageControl
+    Left = 176
+    Top = 0
+    Width = 537
+    Height = 65
+    ActivePage = TabSheet1
+    TabOrder = 6
+    object TabSheet1: TTabSheet
+      Caption = 'Friends'
+      object Edit4: TEdit
+        Left = 224
+        Top = 8
+        Width = 57
+        Height = 21
+        TabOrder = 0
+        Text = '%UserID%'
+      end
+      object Button2: TButton
+        Left = 0
+        Top = 0
+        Width = 73
+        Height = 33
+        Caption = 'Get friends'
+        TabOrder = 1
+        OnClick = Button2Click
+      end
+      object Button3: TButton
+        Left = 72
+        Top = 0
+        Width = 73
+        Height = 33
+        Caption = 'Get online friends'
+        TabOrder = 2
+        WordWrap = True
+        OnClick = Button3Click
+      end
+      object Button4: TButton
+        Left = 144
+        Top = 0
+        Width = 73
+        Height = 33
+        Caption = 'Get mutual friends'
+        TabOrder = 3
+        WordWrap = True
+        OnClick = Button4Click
+      end
+    end
+    object TabSheet2: TTabSheet
+      Caption = 'Audio'
+      ImageIndex = 1
+      object Button5: TButton
+        Left = 0
+        Top = 0
+        Width = 73
+        Height = 33
+        Caption = 'Search audio'
+        TabOrder = 0
+        OnClick = Button5Click
+      end
+      object Edit5: TEdit
+        Left = 80
+        Top = 8
+        Width = 57
+        Height = 21
+        TabOrder = 1
+        Text = 'bi-2'
+      end
+      object Button7: TButton
+        Left = 144
+        Top = 0
+        Width = 73
+        Height = 33
+        Caption = 'Get audio by user id'
+        TabOrder = 2
+        WordWrap = True
+        OnClick = Button7Click
+      end
+      object Edit6: TEdit
+        Left = 224
+        Top = 8
+        Width = 57
+        Height = 21
+        TabOrder = 3
+        Text = '%UserID%'
+      end
+      object Button6: TButton
+        Left = 288
+        Top = 0
+        Width = 73
+        Height = 33
+        Caption = 'Add audio to play list'
+        TabOrder = 4
+        WordWrap = True
+        OnClick = Button6Click
+      end
+      object Edit7: TEdit
+        Left = 368
+        Top = -1
+        Width = 57
+        Height = 21
+        TabOrder = 5
+        Text = '%AudioID%'
+      end
+      object Edit8: TEdit
+        Left = 368
+        Top = 18
+        Width = 57
+        Height = 21
+        TabOrder = 6
+        Text = '%OwnerID%'
+      end
+    end
   end
 end

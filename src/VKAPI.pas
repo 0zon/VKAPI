@@ -11,7 +11,7 @@ uses
 
 const
   INTERNAL_NAME = 'Delphi wrapper for VK API';
-  VERSION = '0.1.0';
+  VERSION = '0.1.1';
   API_URL = 'http://api.vkontakte.ru/api.php';
 
 type
@@ -44,7 +44,15 @@ type
     CanWritePrivateMessage: Boolean;
     constructor Create(Id: String);
   end;
-
+  TVKAudio = class
+    AudioId,
+    OwnerId,
+    Artist,
+    Title: String;
+    Duration: integer;
+    URL: String;
+    constructor Create(Id: String);
+  end;
   TVKontakte = class
   private
     FAPIUrl: String;
@@ -61,7 +69,7 @@ type
     FErrorClass: String;
     FError: String;
     FErrorCode: Integer;
-    //FTestMode: boolean;
+    FTestMode: boolean;
     procedure ClearError;
     function SetError(ErrorClass, Error: String; ErrorCode: Integer): Integer;
     function MD5(PlainText: String): String;
@@ -76,13 +84,18 @@ type
     procedure HTTPSetSettings(Username: String; Password: String; ProxyServer: String;
       ProxyBypass: String; ProxyUsername: String; ProxyPassword: String);
     function Login(Login, Password: String): boolean;
+    function LoginTestMode(MID, Secret: String): boolean;
     function GetError(var ErrorClass, Error: String): Integer;
     property IsLoggedIn: boolean read FIsLoggedIn;
-    //property TestMode: boolean read FTestMode write FTestMode;
+    property TestMode: boolean read FTestMode write FTestMode;
     { Friends methods }
     function APIGetFriends(Args: array of const): TList;
     function APIGetOnlineFriends(): TList;
     function APIGetMutualFriends(Args: array of const): TList;
+    { Audio methods }
+    function APISearchAudio(Args: array of const): TList;
+    function APIGetAudio(Args: array of const): TList;
+    function APIAddAudio(Args: array of const): boolean;
   end;
 
 implementation
@@ -166,6 +179,14 @@ constructor TVKFriend.Create(Id: String);
 begin
   inherited Create;
   Self.Id := Id;
+end;
+
+{ TVKAudio }
+
+constructor TVKAudio.Create(Id: String);
+begin
+  inherited Create;
+  Self.AudioId := Id;
 end;
 
 { TVKontakte }
@@ -263,13 +284,15 @@ begin
   try
     Params.Add('api_id=' + FAppID);
     Params.Add('format=XML'); // todo may be json
-    Params.Add('v=3.0');
-    {if FTestMode then
-      Params.Add('test_mode=1');}
+    if not FTestMode then
+      Params.Add('v=3.0')
+    else
+      Params.Add('test_mode=1');
     Params.Add('method=' + MethodName);
     Params.AddStrings(MethodParams);
     Params.Add('sig=' + GenerateSig(Params));
-    Params.Add('sid=' + FSID);
+    if not FTestMode then
+      Params.Add('sid=' + FSID);
     Response := HTTPRequest('POST', FAPIUrl, HTTPBuildRequestParams(Params), Error);
   finally
     Params.Free;
@@ -430,7 +453,8 @@ begin
 
   FLogin := Login;
   FPassword := Password;
-
+  FTestMode := false;
+  
   // step 1
   Params := TStringList.Create;
   try
@@ -505,6 +529,16 @@ begin
   Result := FIsLoggedIn;
 end;
 
+function TVKontakte.LoginTestMode(MID, Secret: String): boolean;
+begin
+  FTestMode := true;
+  FMID := MID;
+  FSecret := Secret;
+  FIsLoggedIn := true;
+
+  Result := FIsLoggedIn;
+end;
+
 function TVKontakte.APIGetFriends(Args: array of const): TList;
 // Args[0] - uid
 // Args[1] - fields
@@ -520,7 +554,7 @@ var
   Res: boolean;
 begin
   Result := nil;
-
+  
   if not FIsLoggedIn then begin
     SetError('Core', 'Should authorize.', 10);
     exit;
@@ -531,6 +565,14 @@ begin
     Params.Add('uid=' + GetStrArg(Args, 0));
   if High(Args) >= 1 then
     Params.Add('fields=' + GetStrArg(Args, 1));
+  if High(Args) >= 2 then
+    Params.Add('name_case=' + GetStrArg(Args, 2));
+  if High(Args) >= 3 then
+    Params.Add('count=' + GetStrArg(Args, 3));
+  if High(Args) >= 4 then
+    Params.Add('offset=' + GetStrArg(Args, 4));
+  if High(Args) >= 5 then
+    Params.Add('lid=' + GetStrArg(Args, 5));
   res := API('friends.get', Params);
   Params.Free;
   if not res then
@@ -662,6 +704,153 @@ begin
   end;
 end;
 
+function TVKontakte.APISearchAudio(Args: array of const): TList;
+// Args[0] - q
+// Args[1] - count
+// Args[2] - offset
+// Args[3] - sort
+// Args[4] - lyrics
+var
+  Params: TStringlist;
+  i: Integer;
+  XmlNodeList, NodeUser: OleVariant;
+  VKAudio: TVKAudio;
+  Res: boolean;
+begin
+  Result := nil;
+
+  if not FIsLoggedIn then begin
+    SetError('Core', 'Should authorize.', 10);
+    exit;
+  end;
+
+  Params := TStringList.Create;
+  if High(Args) >= 0 then
+    Params.Add('q=' + GetStrArg(Args, 0));
+  if High(Args) >= 1 then
+    Params.Add('count=' + GetStrArg(Args, 1));
+  if High(Args) >= 2 then
+    Params.Add('offset=' + GetStrArg(Args, 2));
+
+  res := API('audio.search', Params);
+  Params.Free;
+  if not res then
+    exit;
+
+  Result := TList.Create;
+
+  if FXMLDoc.SelectSingleNode('/response').Text = '0' then
+    exit;
+
+  // XML parsing
+  XmlNodeList := FXMLDoc.SelectNodes('/response/audio');
+  if XmlNodeList.Length > 0 then begin
+    for i := 0 to XmlNodeList.Length - 1 do begin
+      NodeUser := XmlNodeList.Item[i];
+      VKAudio := TVKAudio.Create(GetTextByNode(NodeUser, 'aid'));
+      with VKAudio do begin
+        OwnerId := GetTextByNode(NodeUser, 'owner_id');
+        Artist := GetTextByNode(NodeUser, 'artist');
+        Title := GetTextByNode(NodeUser, 'title');
+        Duration := strtoint(GetTextByNode(NodeUser, 'duration'));
+        URL := GetTextByNode(NodeUser, 'url');
+      end;
+      Result.Add(VKAudio);
+    end;
+  end;
+end;
+
+function TVKontakte.APIGetAudio(Args: array of const): TList;
+// Args[0] - uid
+// Args[1] - gid
+// Args[2] - aids
+// Args[3] - need_user
+var
+  Params: TStringlist;
+  i: Integer;
+  XmlNodeList, NodeUser: OleVariant;
+  VKAudio: TVKAudio;
+  Res: boolean;
+begin
+  Result := nil;
+
+  if not FIsLoggedIn then begin
+    SetError('Core', 'Should authorize.', 10);
+    exit;
+  end;
+
+  Params := TStringList.Create;
+  if High(Args) >= 0 then
+    Params.Add('uid=' + GetStrArg(Args, 0));
+  if High(Args) >= 1 then
+    Params.Add('gid=' + GetStrArg(Args, 1));
+  if High(Args) >= 2 then
+    Params.Add('aids=' + GetStrArg(Args, 2));
+  if High(Args) >= 3 then
+    Params.Add('need_user=' + GetStrArg(Args, 3));
+
+  res := API('audio.get', Params);
+  Params.Free;
+  if not res then
+    exit;
+
+  Result := TList.Create;
+
+  if FXMLDoc.SelectSingleNode('/response').Text = '0' then
+    exit;
+
+  // XML parsing
+  XmlNodeList := FXMLDoc.SelectNodes('/response/audio');
+  if XmlNodeList.Length > 0 then begin
+    for i := 0 to XmlNodeList.Length - 1 do begin
+      NodeUser := XmlNodeList.Item[i];
+      VKAudio := TVKAudio.Create(GetTextByNode(NodeUser, 'aid'));
+      with VKAudio do begin
+        OwnerId := GetTextByNode(NodeUser, 'owner_id');
+        Artist := GetTextByNode(NodeUser, 'artist');
+        Title := GetTextByNode(NodeUser, 'title');
+        Duration := strtoint(GetTextByNode(NodeUser, 'duration'));
+        URL := GetTextByNode(NodeUser, 'url');
+      end;
+      Result.Add(VKAudio);
+    end;
+  end;
+end;
+
+function TVKontakte.APIAddAudio(Args: array of const): boolean;
+// Args[0] - aid
+// Args[1] - oid
+// Args[2] - gid
+var
+  Params: TStringlist;
+  i: Integer;
+  XmlNodeList, NodeUser: OleVariant;
+  VKAudio: TVKAudio;
+  Res: boolean;
+begin
+  Result := false;
+
+  if not FIsLoggedIn then begin
+    SetError('Core', 'Should authorize.', 10);
+    exit;
+  end;
+
+  Params := TStringList.Create;
+  if High(Args) >= 0 then
+    Params.Add('aid=' + GetStrArg(Args, 0));
+  if High(Args) >= 1 then
+    Params.Add('oid=' + GetStrArg(Args, 1));
+  if High(Args) >= 2 then
+    Params.Add('gid=' + GetStrArg(Args, 2));
+
+  res := API('audio.add', Params);
+  Params.Free;
+  if not res then
+    exit;
+
+  Result :=  FXMLDoc.SelectSingleNode('/response').Text = '1';
+end;
+
 initialization
   CoInitialize(nil);
 
@@ -669,3 +858,12 @@ finalization
   CoUninitialize();
   
 end.
+{
+v0.1.0
+Methods APIGetFriends, APIGetOnlineFriends, APIGetMutualFriends
+
+v0.1.1
+Test mode
+Methods APISearchAudio, APIGetAudio, APIAddAudio
+}
+

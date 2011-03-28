@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, StdCtrls, VKAPI, StrUtils, md5hash;
+  Dialogs, StdCtrls, VKAPI, StrUtils, md5hash, ComCtrls;
 
 type
   TForm1 = class(TForm)
@@ -21,10 +21,27 @@ type
     Button3: TButton;
     Button4: TButton;
     Edit4: TEdit;
+    Button5: TButton;
+    Edit5: TEdit;
+    Button7: TButton;
+    Edit6: TEdit;
+    RadioButton1: TRadioButton;
+    RadioButton2: TRadioButton;
+    PageControl1: TPageControl;
+    TabSheet1: TTabSheet;
+    TabSheet2: TTabSheet;
+    Button6: TButton;
+    Edit7: TEdit;
+    Edit8: TEdit;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
     procedure Button4Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+    procedure Button6Click(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+    procedure RadioButton1Click(Sender: TObject);
+    procedure Button7Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -43,18 +60,21 @@ procedure TForm1.Button1Click(Sender: TObject);
 var
   Err, str: string;
   ErrCode: integer;
+  Fl: boolean;
 begin
   VK := TVKontakte.Create(Edit1.Text);
   with VK do begin
-    //HTTPSetSettings('', '', '192.168.167.3:3128', '', '', '');
-    if Login(Edit2.Text, Edit3.Text) then
+    if RadioButton1.Checked then
+      Fl := Login(Edit2.Text, Edit3.Text)
+    else
+      Fl := LoginTestMode(Edit2.Text, Edit3.Text);
+    if Fl then
       Label4.Caption := 'logged in'
     else begin
       ErrCode := GetError(str, Err);
       Label4.Caption := str + ': ' + Err + format('%d', [ErrCode]);
     end;
   end;
-  //posex(
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);
@@ -90,8 +110,11 @@ begin
 
   L := VK.APIGetOnlineFriends();
   if Assigned(L) then begin
-    for i := 0 to L.Count - 1 do
+    for i := 0 to L.Count - 1 do begin
       Memo1.Lines.Add(TVKFriend(L[i]).Id);
+      TVKFriend(L[i]).Free;
+    end;
+    L.Free;
   end
   else begin
     VK.GetError(str, Err);
@@ -111,12 +134,92 @@ begin
   
   L := VK.APIGetMutualFriends([Edit4.Text]);
   if Assigned(L) then begin
-    for i := 0 to L.Count - 1 do
+    for i := 0 to L.Count - 1 do begin
       Memo1.Lines.Add(TVKFriend(L[i]).Id);
+      TVKFriend(L[i]).Free;
+    end;
+    L.Free;
   end
   else begin
     VK.GetError(str, Err);
     Label4.Caption := str + ': ' + Err;
-  end;end;
+  end;
+end;
+
+procedure TForm1.Button5Click(Sender: TObject);
+var
+  L: TList;
+  Err, str: string;
+  i: integer;
+begin
+  Memo1.Text := '';
+  if not Assigned(VK) then
+    exit;
+  
+  L := VK.APISearchAudio([Edit5.Text, '200', '0']);
+  if Assigned(L) then begin
+    for i := 0 to L.Count - 1 do begin
+      Memo1.Lines.Add(Format('%s - %s (%d:%d)', [TVKAudio(L[i]).Artist, TVKAudio(L[i]).Title, TVKAudio(L[i]).Duration div 60, TVKAudio(L[i]).Duration mod 60]));
+      TVKAudio(L[i]).Free;
+    end;
+    L.Free;
+  end
+  else begin
+    VK.GetError(str, Err);
+    Label4.Caption := str + ': ' + Err;
+  end;
+end;
+
+procedure TForm1.Button6Click(Sender: TObject);
+var
+  Err, str: string;
+begin
+  Memo1.Text := '';
+  if not Assigned(VK) then
+    exit;
+
+  if VK.APIAddAudio([Edit7.Text, Edit8.Text]) then begin
+    Memo1.Text := 'Audio successfully added';
+  end
+  else begin
+    VK.GetError(str, Err);
+    Label4.Caption := str + ': ' + Err;
+  end;
+end;
+
+procedure TForm1.FormCreate(Sender: TObject);
+begin
+  RadioButton1.Checked := true;
+end;
+
+procedure TForm1.RadioButton1Click(Sender: TObject);
+begin
+  Label2.Caption := IfThen(RadioButton1.Checked, 'Login', 'User Id');
+  Label3.Caption := IfThen(RadioButton1.Checked, 'Pass', 'Secret');
+end;
+
+procedure TForm1.Button7Click(Sender: TObject);
+var
+  L: TList;
+  Err, str: string;
+  i: integer;
+begin
+  Memo1.Text := '';
+  if not Assigned(VK) then
+    exit;
+
+  L := VK.APIGetAudio([Edit6.Text]);
+  if Assigned(L) then begin
+    for i := 0 to L.Count - 1 do begin
+      Memo1.Lines.Add(Format('%s - %s (%d:%d)', [TVKAudio(L[i]).Artist, TVKAudio(L[i]).Title, TVKAudio(L[i]).Duration div 60, TVKAudio(L[i]).Duration mod 60]));
+      TVKAudio(L[i]).Free;
+    end;
+    L.Free;
+  end
+  else begin
+    VK.GetError(str, Err);
+    Label4.Caption := str + ': ' + Err;
+  end;
+end;
 
 end.
