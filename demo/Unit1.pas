@@ -33,6 +33,13 @@ type
     Button6: TButton;
     Edit7: TEdit;
     Edit8: TEdit;
+    TabSheet3: TTabSheet;
+    Button8: TButton;
+    Edit9: TEdit;
+    Edit10: TEdit;
+    Edit11: TEdit;
+    Edit12: TEdit;
+    Edit13: TEdit;
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
@@ -42,6 +49,7 @@ type
     procedure FormCreate(Sender: TObject);
     procedure RadioButton1Click(Sender: TObject);
     procedure Button7Click(Sender: TObject);
+    procedure Button8Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -155,7 +163,7 @@ begin
   Memo1.Text := '';
   if not Assigned(VK) then
     exit;
-  
+
   L := VK.APISearchAudio([Edit5.Text, '200', '0']);
   if Assigned(L) then begin
     for i := 0 to L.Count - 1 do begin
@@ -215,6 +223,23 @@ begin
       TVKAudio(L[i]).Free;
     end;
     L.Free;
+  end
+  else begin
+    VK.GetError(str, Err);
+    Label4.Caption := str + ': ' + Err;
+  end;
+end;
+
+procedure TForm1.Button8Click(Sender: TObject);
+var
+  Err, str: string;
+begin
+  Memo1.Text := '';
+  if not Assigned(VK) then
+    exit;
+
+  if VK.APIPostOnWall([Edit11.Text, Edit12.Text, Edit13.Text, Edit9.Text, Edit10.Text]) then begin
+    Memo1.Text := 'Message/Attachment successfully posted';
   end
   else begin
     VK.GetError(str, Err);

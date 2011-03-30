@@ -11,7 +11,7 @@ uses
 
 const
   INTERNAL_NAME = 'Delphi wrapper for VK API';
-  VERSION = '0.1.1';
+  VERSION = '0.1.2';
   API_URL = 'http://api.vkontakte.ru/api.php';
 
 type
@@ -62,6 +62,7 @@ type
     FSID: String;
     FMID: String;
     FSecret: String;
+    FPermisions: Longint;
     FIsLoggedIn: boolean;
     FHTTP: OLEVariant;
     FHTTPUsername, FHTTPPassword, FHTTPProxyServer, FHTTPProxyBypass, FHTTPProxyUsername, FHTTPProxyPassword: String;
@@ -76,10 +77,10 @@ type
     function GenerateSig(Params: TStringList): String;
     function GetTextByNode(Node: OleVariant; NodeName: String): String;
     function API(MethodName: String; MethodParams: TStringList): boolean;
-    function HTTPRequest(Method: String; Url: String; Data: String; var Error: Integer): String;
+    function HTTPRequest(Method: String; Url: String; Data: String; Referer: string; var Error: Integer): String;
     function HTTPBuildRequestParams(Params: TStringList): String;
   public
-    constructor Create(AppID: String);
+    constructor Create(AppID: String; Permisions: Longint = 15615);
     destructor Destroy; override;
     procedure HTTPSetSettings(Username: String; Password: String; ProxyServer: String;
       ProxyBypass: String; ProxyUsername: String; ProxyPassword: String);
@@ -96,6 +97,8 @@ type
     function APISearchAudio(Args: array of const): TList;
     function APIGetAudio(Args: array of const): TList;
     function APIAddAudio(Args: array of const): boolean;
+    { Wall methods }
+    function APIPostOnWall(Args: array of const): boolean;
   end;
 
 implementation
@@ -173,6 +176,11 @@ begin
   end;
 end;
 
+function NodeExist(Node: OleVariant): boolean;
+begin
+  Result := TVarData(Node).VDispatch <> nil;
+end;
+
 { TVKFriend }
 
 constructor TVKFriend.Create(Id: String);
@@ -197,8 +205,8 @@ begin
   inherited;
 end;
 
-constructor TVKontakte.Create(AppID: String);
-begin      
+constructor TVKontakte.Create(AppID: String; Permisions: Longint = 15615);
+begin
   inherited Create;
   FAPIUrl := API_URL;
   FAppID := AppID;
@@ -208,7 +216,7 @@ begin
   FMID := '';
   FSecret := '';
   FIsLoggedIn := false;
-  //FTestMode := false;
+  FPermisions := Permisions;
   HTTPSetSettings('', '', '', '', '', '');
   ClearError;
 
@@ -262,12 +270,12 @@ var
   ChildNode: OleVariant;
 begin
   Result := '';
-  if NodeName = '' then begin
-    Result := Node.Text;
-    exit;
-  end;
-  ChildNode := Node.SelectSingleNode(NodeName);
-  if TVarData(ChildNode).VDispatch <> nil then
+  if NodeName = '' then
+    ChildNode := Node
+  else
+    ChildNode := Node.SelectSingleNode(NodeName);
+
+  if NodeExist(ChildNode) then
     Result := ChildNode.Text;
 end;
 
@@ -293,7 +301,7 @@ begin
     Params.Add('sig=' + GenerateSig(Params));
     if not FTestMode then
       Params.Add('sid=' + FSID);
-    Response := HTTPRequest('POST', FAPIUrl, HTTPBuildRequestParams(Params), Error);
+    Response := HTTPRequest('POST', FAPIUrl, HTTPBuildRequestParams(Params), '', Error);
   finally
     Params.Free;
   end;
@@ -308,13 +316,13 @@ begin
   end;
 
   Node := FXMLDoc.SelectSingleNode('/error');
-  if TVarData(Node).VDispatch <> nil then begin
+  if NodeExist(Node) then begin
     SetError('Core', 'Response error: ' + Node.Text, 11);
     exit;
   end;
 
   Node := FXMLDoc.SelectSingleNode('/response');
-  if TVarData(Node).VDispatch = nil then begin
+  if not NodeExist(Node) then begin
     SetError('Core', 'Wrong response', 12);
     exit;
   end;
@@ -333,7 +341,7 @@ begin
   FHTTPProxyPassword := ProxyPassword;
 end;
 
-function TVKontakte.HTTPRequest(Method: String; Url: String; Data: String; var Error: Integer): String;
+function TVKontakte.HTTPRequest(Method: String; Url: String; Data: String; Referer: string; var Error: Integer): String;
 
 const
   SXH_PROXY_SET_PROXY = 2;
@@ -404,6 +412,8 @@ begin
   end;
 
   FHttp.SetRequestHeader('User-Agent', INTERNAL_NAME + '/' + VERSION);
+  if Referer <> '' then
+    FHttp.SetRequestHeader('Referer', Referer);
 
   if Method = 'GET' then
     ErrorCode := FHttp.Send()
@@ -445,8 +455,9 @@ const
   API_LOGIN_URL = 'http://vkontakte.ru/login.php';
 var
   Params: TStringlist;
-  Response, app_hash, s: String;
+  Response, app_hash, settings_hash, s, Referrer: String;
   Error: Integer;
+  Perm: Longint;
 begin
   Result := false;
   Error := -1;
@@ -461,13 +472,15 @@ begin
     Params.Add('app=' + FAppID);
     Params.Add('layout=popup');
     Params.Add('type=browser');
-    Params.Add('settings=' + '15615'); // togo set permitions
-    Response := HTTPRequest('GET', API_LOGIN_URL, HTTPBuildRequestParams(Params), Error);
+    Params.Add('settings=' + IntToStr(FPermisions));
+    Response := HTTPRequest('GET', API_LOGIN_URL, HTTPBuildRequestParams(Params), '', Error);
   finally
     Params.Free;
   end;
   if Error >= 0 then
     exit;
+
+  Referrer := FHTTP.Option(1);
 
   app_hash := StrCut(Response, 'name="app_hash" value="', '"');
   if app_hash = '' then begin
@@ -484,7 +497,7 @@ begin
     Params.Add('email=' + FLogin);
     Params.Add('pass=' + FPassword);
     Params.Add('permanent=1');
-    Response := HTTPRequest('POST', 'http://login.vk.com', HTTPBuildRequestParams(Params), Error);
+    Response := HTTPRequest('POST', 'http://login.vk.com', HTTPBuildRequestParams(Params), '', Error);
   finally
     Params.Free;
   end;
@@ -499,6 +512,7 @@ begin
     exit;
   end;
 
+  // step 3
   Params := TStringList.Create;
   try
     Params.Add('act=auth_result');
@@ -508,7 +522,7 @@ begin
     Params.Add('m=4');
     Params.Add('permanent=1');
     Params.Add('s=' + s);
-    Response := HTTPRequest('POST', API_LOGIN_URL, HTTPBuildRequestParams(Params), Error);
+    Response := HTTPRequest('POST', API_LOGIN_URL, HTTPBuildRequestParams(Params), '', Error);
   finally
     Params.Free;
   end;
@@ -518,14 +532,58 @@ begin
   FMID := StrCut(Response, '"mid":', ',');
   FSID := StrCut(Response, '"sid":"', '"');
   FSecret := StrCut(Response, 'secret":"', '"');
-  FIsLoggedIn := (FMID <> '') and (FSID <> '') and (FSecret <> '');
-  Response := '';
+  settings_hash := StrCut(Response, 'settings_hash":"', '"');
 
-  if not FIsLoggedIn then begin
+  if not ((FMID <> '') and (FSID <> '') and (FSecret <> '') and (settings_hash <> '')) then begin
     Error := SetError('Core', 'Login failed.', 3);
     exit;
   end;
+  
+  // step 4
+  Params := TStringList.Create;
+  try
+    Params.Add('vk=');
+    Response := HTTPRequest('GET', 'http://login.vk.com/', HTTPBuildRequestParams(Params), Referrer, Error);
+  finally
+    Params.Free;
+  end;
+  s := StrCut(Response, '''s'' value=''', '''');
+  if (s = '') then begin
+    Error := SetError('Core', 'Login failed.', 4);
+    exit;
+  end;
 
+  // step 5
+  Params := TStringList.Create;
+  try
+    Params.Add('s=' + StrCut(Response, 'value=''', ''''));
+    Response := HTTPRequest('POST', 'http://vkontakte.ru/login.php?op=slogin', HTTPBuildRequestParams(Params), FHTTP.Option(1), Error);
+  finally
+    Params.Free;
+  end;
+
+  // step 6
+  Params := TStringList.Create;
+  try
+    Params.Add('addMember=1');
+    Params.Add('hash=' + settings_hash);
+    Params.Add('id=' + FAppID);
+    Perm := 1;
+    while Perm <= FPermisions do begin
+      if FPermisions and Perm = Perm then
+        Params.Add('app_settings_' + IntToStr(Perm) + '=1');
+      Perm := Perm shl 1;
+    end;
+    Response := HTTPRequest('POST', 'http://vkontakte.ru/apps.php?act=a_save_settings', HTTPBuildRequestParams(Params), Referrer, Error);
+  finally
+    Params.Free;
+  end;
+  if Error >= 0 then
+    exit;
+
+  FIsLoggedIn := pos('"result":', Response) > 0;
+  if not FIsLoggedIn then
+    Error := SetError('Core', 'Login failed.', 5);
   Result := FIsLoggedIn;
 end;
 
@@ -580,12 +638,9 @@ begin
 
   Result := TList.Create;
 
-  if FXMLDoc.SelectSingleNode('/response').Text = '0' then
-    exit;
-
   // XML parsing
   XmlNodeList := FXMLDoc.SelectNodes('/response/user');
-  if XmlNodeList.Length > 0 then begin
+  if NodeExist(XmlNodeList) and XmlNodeList.Length > 0 then begin
     for i := 0 to XmlNodeList.Length - 1 do begin
       NodeUser := XmlNodeList.Item[i];
       VKFriend := TVKFriend.Create(GetTextByNode(NodeUser, 'uid'));
@@ -643,12 +698,9 @@ begin
 
   Result := TList.Create;
 
-  if FXMLDoc.SelectSingleNode('/response').Text = '0' then
-    exit;
-
   // XML parsing
   XmlNodeList := FXMLDoc.SelectNodes('/response/uid');
-  if XmlNodeList.Length > 0 then begin
+  if NodeExist(XmlNodeList) and XmlNodeList.Length > 0 then begin
     for i := 0 to XmlNodeList.Length - 1 do begin
       NodeUser := XmlNodeList.Item[i];
       VKFriend := TVKFriend.Create(GetTextByNode(NodeUser, ''));
@@ -690,12 +742,9 @@ begin
 
   Result := TList.Create;
 
-  if FXMLDoc.SelectSingleNode('/response').Text = '0' then
-    exit;
-
   // XML parsing
   XmlNodeList := FXMLDoc.SelectNodes('/response/uid');
-  if XmlNodeList.Length > 0 then begin
+  if NodeExist(XmlNodeList) and XmlNodeList.Length > 0 then begin
     for i := 0 to XmlNodeList.Length - 1 do begin
       NodeUser := XmlNodeList.Item[i];
       VKFriend := TVKFriend.Create(GetTextByNode(NodeUser, ''));
@@ -739,12 +788,9 @@ begin
 
   Result := TList.Create;
 
-  if FXMLDoc.SelectSingleNode('/response').Text = '0' then
-    exit;
-
   // XML parsing
   XmlNodeList := FXMLDoc.SelectNodes('/response/audio');
-  if XmlNodeList.Length > 0 then begin
+  if NodeExist(XmlNodeList) and XmlNodeList.Length > 0 then begin
     for i := 0 to XmlNodeList.Length - 1 do begin
       NodeUser := XmlNodeList.Item[i];
       VKAudio := TVKAudio.Create(GetTextByNode(NodeUser, 'aid'));
@@ -796,12 +842,9 @@ begin
 
   Result := TList.Create;
 
-  if FXMLDoc.SelectSingleNode('/response').Text = '0' then
-    exit;
-
   // XML parsing
   XmlNodeList := FXMLDoc.SelectNodes('/response/audio');
-  if XmlNodeList.Length > 0 then begin
+  if NodeExist(XmlNodeList) and XmlNodeList.Length > 0 then begin
     for i := 0 to XmlNodeList.Length - 1 do begin
       NodeUser := XmlNodeList.Item[i];
       VKAudio := TVKAudio.Create(GetTextByNode(NodeUser, 'aid'));
@@ -823,9 +866,6 @@ function TVKontakte.APIAddAudio(Args: array of const): boolean;
 // Args[2] - gid
 var
   Params: TStringlist;
-  i: Integer;
-  XmlNodeList, NodeUser: OleVariant;
-  VKAudio: TVKAudio;
   Res: boolean;
 begin
   Result := false;
@@ -848,7 +888,47 @@ begin
   if not res then
     exit;
 
-  Result :=  FXMLDoc.SelectSingleNode('/response').Text = '1';
+  Result := GetTextByNode(FXMLDoc.SelectSingleNode('/response'), '') = '1';
+end;
+
+function TVKontakte.APIPostOnWall(Args: array of const): boolean;
+// Args[0] - owner_id
+// Args[1] - message
+// Args[2] - attachment type
+// Args[3] - attachment owner_id
+// Args[4] - attachment media_id
+// Args[5] - export
+var
+  Params: TStringlist;
+  XmlNodeList: OleVariant;
+  Res: boolean;
+begin
+  Result := false;
+
+  if not FIsLoggedIn then begin
+    SetError('Core', 'Should authorize.', 10);
+    exit;
+  end;
+
+  Params := TStringList.Create;
+  if High(Args) >= 0 then
+    Params.Add('owner_id=' + GetStrArg(Args, 0));
+  if High(Args) >= 1 then
+    Params.Add('message=' + GetStrArg(Args, 1));
+  if High(Args) >= 4 then
+    Params.Add('attachment=' + GetStrArg(Args, 2) + GetStrArg(Args, 3) + '_' + GetStrArg(Args, 4));
+  if High(Args) >= 5 then
+    Params.Add('export=' + GetStrArg(Args, 5));
+
+  res := API('wall.post', Params);
+  Params.Free;
+  if not res then
+    exit;
+
+  // XML parsing
+  XmlNodeList := FXMLDoc.SelectSingleNode('/response');
+
+  Result := Length(GetTextByNode(XmlNodeList, 'post_id')) > 0;
 end;
 
 initialization
@@ -856,14 +936,17 @@ initialization
 
 finalization
   CoUninitialize();
-  
-end.
+
 {
 v0.1.0
-Methods APIGetFriends, APIGetOnlineFriends, APIGetMutualFriends
+[+] Methods APIGetFriends, APIGetOnlineFriends, APIGetMutualFriends
 
 v0.1.1
-Test mode
-Methods APISearchAudio, APIGetAudio, APIAddAudio
-}
+[+] Test mode
+[+] Methods APISearchAudio, APIGetAudio, APIAddAudio
 
+v0.1.2
+[~] minor fixes, auth in with adding application
+[+] APIPostOnWall
+}
+end.

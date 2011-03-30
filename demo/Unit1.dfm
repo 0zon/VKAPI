@@ -135,6 +135,7 @@ object Form1: TForm1
         Height = 33
         Caption = 'Get friends'
         TabOrder = 1
+        WordWrap = True
         OnClick = Button2Click
       end
       object Button3: TButton
@@ -168,6 +169,7 @@ object Form1: TForm1
         Height = 33
         Caption = 'Search audio'
         TabOrder = 0
+        WordWrap = True
         OnClick = Button5Click
       end
       object Edit5: TEdit
@@ -221,6 +223,60 @@ object Form1: TForm1
         Height = 21
         TabOrder = 6
         Text = '%OwnerID%'
+      end
+    end
+    object TabSheet3: TTabSheet
+      Caption = 'Wall'
+      ImageIndex = 2
+      object Button8: TButton
+        Left = 0
+        Top = 0
+        Width = 73
+        Height = 33
+        Caption = 'Post'
+        TabOrder = 0
+        WordWrap = True
+        OnClick = Button8Click
+      end
+      object Edit10: TEdit
+        Left = 208
+        Top = -1
+        Width = 57
+        Height = 21
+        TabOrder = 1
+        Text = '%AudioID%'
+      end
+      object Edit9: TEdit
+        Left = 208
+        Top = 18
+        Width = 57
+        Height = 21
+        TabOrder = 2
+        Text = '%OwnerID%'
+      end
+      object Edit11: TEdit
+        Left = 80
+        Top = -1
+        Width = 57
+        Height = 21
+        TabOrder = 3
+        Text = '%UserID%'
+      end
+      object Edit12: TEdit
+        Left = 80
+        Top = 18
+        Width = 57
+        Height = 21
+        TabOrder = 4
+        Text = '%Msg%'
+      end
+      object Edit13: TEdit
+        Left = 144
+        Top = -1
+        Width = 57
+        Height = 21
+        TabOrder = 5
+        Text = 'audio'
       end
     end
   end
