@@ -11,8 +11,8 @@ uses
 
 const
   INTERNAL_NAME = 'Delphi wrapper for VK API';
-  VERSION = '0.1.2';
-  API_URL = 'http://api.vkontakte.ru/api.php';
+  VERSION       = '0.2.0';
+  API_URL       = 'http://api.vkontakte.ru/api.php';
   API_OAUTH_URL = 'https://api.vkontakte.ru/method/';
 
 type
@@ -111,56 +111,56 @@ implementation
 
 function StrCut(Str, SubStrL, SubStrR: String) : String;
 var
-	pL, pR, lL : Integer;
+  pL, pR, lL : Integer;
 begin
-	Result := '';
-	if Length(SubStrL) > 0 then begin
-		pL := Pos(SubStrL, str);
-		if pL = 0 then
-			exit;
-	end
-	else
-		pL := 1;
+  Result := '';
+  if Length(SubStrL) > 0 then begin
+    pL := Pos(SubStrL, str);
+    if pL = 0 then
+      exit;
+  end
+  else
+    pL := 1;
 
-	lL := Length(SubStrL);
-	if Length(SubStrR) > 0 then begin
-		pR := PosEx(SubStrR, Str, pL + lL);
-		if pR = 0 then
-			exit;
-	end
-	else
-		pR := Length(Str) + 1;
-	
-	if pR - (pL + lL) = 0 then
-		exit;
+  lL := Length(SubStrL);
+  if Length(SubStrR) > 0 then begin
+    pR := PosEx(SubStrR, Str, pL + lL);
+    if pR = 0 then
+      exit;
+  end
+  else
+    pR := Length(Str) + 1;
+  
+  if pR - (pL + lL) = 0 then
+    exit;
 
-	Result := MidStr(str, pL + lL, pR - (pL + lL));
+  Result := MidStr(str, pL + lL, pR - (pL + lL));
 end;
 
 function ByteToHex(b: byte): String;
-	function GetChar(b: byte): char;
-	begin
-		if b < 10 then Result := chr(Ord('0') + b)
-		else Result := chr(Ord('a') - 10 + b);
-	end;
+  function GetChar(b: byte): char;
+  begin
+    if b < 10 then Result := chr(Ord('0') + b)
+    else Result := chr(Ord('a') - 10 + b);
+  end;
 begin
-	Result := GetChar(b div 16) + GetChar(b mod 16);
+  Result := GetChar(b div 16) + GetChar(b mod 16);
 end;
 
 function UrlEncode(S: String; Space: boolean = false): String;
 var
-		I : Integer;
+  I : Integer;
 begin
-		Result := '';
-		for I := 1 to Length(S) do begin
-			if (Space) and (AnsiChar(S[I]) = ' ') then
-				Result := Result + '+'
-			else
-				if AnsiChar(S[I]) in ['0'..'9', 'A'..'Z', 'a'..'z'] then
-						Result := Result + S[I]
-				else
-						Result := Result + '%' + ByteToHex(Ord(S[I]));
-		end;
+  Result := '';
+  for I := 1 to Length(S) do begin
+    if (Space) and (AnsiChar(S[I]) = ' ') then
+      Result := Result + '+'
+    else
+      if AnsiChar(S[I]) in ['0'..'9', 'A'..'Z', 'a'..'z'] then
+          Result := Result + S[I]
+      else
+          Result := Result + '%' + ByteToHex(Ord(S[I]));
+  end;
 end;
 
 function GetStrArg(Args: array of const; ArgNum: byte): string;
@@ -263,7 +263,7 @@ function TVKontakte.GenerateSig(Params: TStringList): String;
 var
   i:   Integer;
 begin
-  Params.Sort(); // todo need key sort
+  Params.Sort(); // todo: sort by key
   Result := '';
   for i := 0 to Params.Count - 1 do
     Result := Result + Params[i];
@@ -304,7 +304,7 @@ begin
     else begin
       URL := FAPIUrl;
       Params.Add('api_id=' + FAppID);
-      //Params.Add('format=XML'); // todo may be json
+      //Params.Add('format=XML'); // todo: json
       if FMode <> amTest then
         Params.Add('v=3.0')
       else
@@ -392,11 +392,11 @@ begin
   if (ErrorCode <> S_OK) then begin
     Error := SetError('HTTP', 'Could not set timeouts.', 3);
     exit;
-  end;
-  // Turn on automatic redirects
-  FHttp.Option(6) := 1;}
+  end;}  
+  //FHttp.Option(6) := Redirect; // Turn on/off automatic redirects
   {if pos('#', URL) > 0 then
-    Url := copy(Url, 1, pos('#', URL) - 1);}FHttp.Option(7) := 1;
+    Url := copy(Url, 1, pos('#', URL) - 1);}
+  FHttp.Option(7) := 1; // disable url encode
   if (Method = 'GET') and (Data <> '') then
     ErrorCode := FHttp.Open(Method, Url + '?' + Data, false)
   else
@@ -617,7 +617,6 @@ var
   Error: Integer;
   Perm: Longint;
 begin
-  //http://oauth.vkontakte.ru/authorize?client_id=2232793&scope=audio,wall&redirect_uri=blank.html&display=page&response_type=token
   Result := false;
   Error := -1;
 
@@ -626,6 +625,7 @@ begin
   FMode := amOAuth;
 
   // step 1
+  // http://oauth.vkontakte.ru/authorize?client_id=2232793&scope=audio,wall&redirect_uri=blank.html&display=page&response_type=token
   Params := TStringList.Create;
   try
     Params.Add('client_id=' + ClientId);
@@ -1036,6 +1036,10 @@ v0.1.1
 
 v0.1.2
 [~] minor fixes, auth in with adding application
+[+] APIPostOnWall
+
+v0.2.0
+[~] fixes: http redirect, http request convert to utf8
 [+] APIPostOnWall
 }
 end.
