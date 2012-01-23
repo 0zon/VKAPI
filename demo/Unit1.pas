@@ -73,7 +73,8 @@ begin
   VK := TVKontakte.Create(Edit1.Text);
   with VK do begin
     if RadioButton1.Checked then
-      Fl := Login(Edit2.Text, Edit3.Text)
+      //Fl := Login(Edit2.Text, Edit3.Text)
+      Fl := LoginOAuth(Edit2.Text, Edit3.Text, Edit1.Text, 'audio,wall')
     else
       Fl := LoginTestMode(Edit2.Text, Edit3.Text);
     if Fl then
@@ -98,11 +99,11 @@ begin
   L := VK.APIGetFriends(['', 'photo_big,sex,contacts,nickname']);
   if Assigned(L) then begin
     for i := 0 to L.Count - 1 do
-      Memo1.Lines.Add(TVKFriend(L[i]).LastName + ' ' + TVKFriend(L[i]).NickName + ', ' + TVKFriend(L[i]).id);
+      Memo1.Lines.Add(TVKFriend(L[i]).LastName + ' ' + TVKFriend(L[i]).NickName + ' ' + TVKFriend(L[i]).FirstName + ' [' + TVKFriend(L[i]).id + ']');
   end
   else begin
     VK.GetError(str, Err);
-    Label4.Caption := str + ': ' + Err;
+    Memo1.Text := str + ': ' + Err;
   end;
 end;
 
@@ -126,7 +127,7 @@ begin
   end
   else begin
     VK.GetError(str, Err);
-    Label4.Caption := str + ': ' + Err;
+    Memo1.Text := str + ': ' + Err;
   end;
 end;
 
@@ -150,7 +151,7 @@ begin
   end
   else begin
     VK.GetError(str, Err);
-    Label4.Caption := str + ': ' + Err;
+    Memo1.Text := str + ': ' + Err;
   end;
 end;
 
@@ -167,14 +168,14 @@ begin
   L := VK.APISearchAudio([Edit5.Text, '200', '0']);
   if Assigned(L) then begin
     for i := 0 to L.Count - 1 do begin
-      Memo1.Lines.Add(Format('%s - %s (%d:%d)', [TVKAudio(L[i]).Artist, TVKAudio(L[i]).Title, TVKAudio(L[i]).Duration div 60, TVKAudio(L[i]).Duration mod 60]));
+      Memo1.Lines.Add(Format('%s - %s (%d:%d) [%s, %s]', [TVKAudio(L[i]).Artist, TVKAudio(L[i]).Title, TVKAudio(L[i]).Duration div 60, TVKAudio(L[i]).Duration mod 60, TVKAudio(L[i]).AudioId, TVKAudio(L[i]).OwnerId]));
       TVKAudio(L[i]).Free;
     end;
     L.Free;
   end
   else begin
     VK.GetError(str, Err);
-    Label4.Caption := str + ': ' + Err;
+    Memo1.Text := str + ': ' + Err;
   end;
 end;
 
@@ -191,7 +192,7 @@ begin
   end
   else begin
     VK.GetError(str, Err);
-    Label4.Caption := str + ': ' + Err;
+    Memo1.Text := str + ': ' + Err;
   end;
 end;
 
@@ -219,14 +220,14 @@ begin
   L := VK.APIGetAudio([Edit6.Text]);
   if Assigned(L) then begin
     for i := 0 to L.Count - 1 do begin
-      Memo1.Lines.Add(Format('%s - %s (%d:%d)', [TVKAudio(L[i]).Artist, TVKAudio(L[i]).Title, TVKAudio(L[i]).Duration div 60, TVKAudio(L[i]).Duration mod 60]));
+      Memo1.Lines.Add(Format('%s - %s (%d:%d) [%s, %s]', [TVKAudio(L[i]).Artist, TVKAudio(L[i]).Title, TVKAudio(L[i]).Duration div 60, TVKAudio(L[i]).Duration mod 60, TVKAudio(L[i]).AudioId, TVKAudio(L[i]).OwnerId]));
       TVKAudio(L[i]).Free;
     end;
     L.Free;
   end
   else begin
     VK.GetError(str, Err);
-    Label4.Caption := str + ': ' + Err;
+    Memo1.Text := str + ': ' + Err;
   end;
 end;
 
@@ -243,7 +244,7 @@ begin
   end
   else begin
     VK.GetError(str, Err);
-    Label4.Caption := str + ': ' + Err;
+    Memo1.Text := str + ': ' + Err;
   end;
 end;
 

@@ -13,6 +13,7 @@ const
   INTERNAL_NAME = 'Delphi wrapper for VK API';
   VERSION = '0.1.2';
   API_URL = 'http://api.vkontakte.ru/api.php';
+  API_OAUTH_URL = 'https://api.vkontakte.ru/method/';
 
 type
   TVKSex = (vkUnk, vkWomen, vkMan);
@@ -53,6 +54,7 @@ type
     URL: String;
     constructor Create(Id: String);
   end;
+  TAuthMode = (amOAuth, amTest, amOld);
   TVKontakte = class
   private
     FAPIUrl: String;
@@ -62,6 +64,7 @@ type
     FSID: String;
     FMID: String;
     FSecret: String;
+    FAccessToken: String;
     FPermisions: Longint;
     FIsLoggedIn: boolean;
     FHTTP: OLEVariant;
@@ -70,14 +73,14 @@ type
     FErrorClass: String;
     FError: String;
     FErrorCode: Integer;
-    FTestMode: boolean;
+    FMode: TAuthMode;
     procedure ClearError;
     function SetError(ErrorClass, Error: String; ErrorCode: Integer): Integer;
     function MD5(PlainText: String): String;
     function GenerateSig(Params: TStringList): String;
     function GetTextByNode(Node: OleVariant; NodeName: String): String;
     function API(MethodName: String; MethodParams: TStringList): boolean;
-    function HTTPRequest(Method: String; Url: String; Data: String; Referer: string; var Error: Integer): String;
+    function HTTPRequest(Method: String; Url: String; Data: String; Referer: string; Redirect: boolean; var Error: Integer): String;
     function HTTPBuildRequestParams(Params: TStringList): String;
   public
     constructor Create(AppID: String; Permisions: Longint = 15615);
@@ -85,10 +88,11 @@ type
     procedure HTTPSetSettings(Username: String; Password: String; ProxyServer: String;
       ProxyBypass: String; ProxyUsername: String; ProxyPassword: String);
     function Login(Login, Password: String): boolean;
+    function LoginOAuth(Login, Password, ClientId: String; Scope: String = ''): boolean;
     function LoginTestMode(MID, Secret: String): boolean;
     function GetError(var ErrorClass, Error: String): Integer;
     property IsLoggedIn: boolean read FIsLoggedIn;
-    property TestMode: boolean read FTestMode write FTestMode;
+    property Mode: TAuthMode read FMode write FMode;
     { Friends methods }
     function APIGetFriends(Args: array of const): TList;
     function APIGetOnlineFriends(): TList;
@@ -215,6 +219,7 @@ begin
   FSID := '';
   FMID := '';
   FSecret := '';
+  FAccessToken := '';
   FIsLoggedIn := false;
   FPermisions := Permisions;
   HTTPSetSettings('', '', '', '', '', '');
@@ -285,23 +290,32 @@ var
   Error:   Integer;
   Response: String;
   Node: OleVariant;
+  URL: string;
 begin
   Result := false;
 
   Params := TStringList.Create;
   try
-    Params.Add('api_id=' + FAppID);
-    Params.Add('format=XML'); // todo may be json
-    if not FTestMode then
-      Params.Add('v=3.0')
-    else
-      Params.Add('test_mode=1');
-    Params.Add('method=' + MethodName);
-    Params.AddStrings(MethodParams);
-    Params.Add('sig=' + GenerateSig(Params));
-    if not FTestMode then
-      Params.Add('sid=' + FSID);
-    Response := HTTPRequest('POST', FAPIUrl, HTTPBuildRequestParams(Params), '', Error);
+    if FMode = amOAuth then begin
+      URL := API_OAUTH_URL + MethodName + '.xml';
+      Params.Add('access_token=' + FAccessToken);
+      Params.AddStrings(MethodParams);
+    end
+    else begin
+      URL := FAPIUrl;
+      Params.Add('api_id=' + FAppID);
+      //Params.Add('format=XML'); // todo may be json
+      if FMode <> amTest then
+        Params.Add('v=3.0')
+      else
+        Params.Add('test_mode=1');
+      Params.Add('method=' + MethodName);
+      Params.AddStrings(MethodParams);
+      Params.Add('sig=' + GenerateSig(Params));
+      if FMode <> amTest then
+        Params.Add('sid=' + FSID);
+    end;
+    Response := HTTPRequest('POST', URL, HTTPBuildRequestParams(Params), '', true, Error);
   finally
     Params.Free;
   end;
@@ -341,7 +355,7 @@ begin
   FHTTPProxyPassword := ProxyPassword;
 end;
 
-function TVKontakte.HTTPRequest(Method: String; Url: String; Data: String; Referer: string; var Error: Integer): String;
+function TVKontakte.HTTPRequest(Method: String; Url: String; Data: String; Referer: string; Redirect: boolean; var Error: Integer): String;
 
 const
   SXH_PROXY_SET_PROXY = 2;
@@ -378,8 +392,11 @@ begin
   if (ErrorCode <> S_OK) then begin
     Error := SetError('HTTP', 'Could not set timeouts.', 3);
     exit;
-  end;}
-
+  end;
+  // Turn on automatic redirects
+  FHttp.Option(6) := 1;}
+  {if pos('#', URL) > 0 then
+    Url := copy(Url, 1, pos('#', URL) - 1);}FHttp.Option(7) := 1;
   if (Method = 'GET') and (Data <> '') then
     ErrorCode := FHttp.Open(Method, Url + '?' + Data, false)
   else
@@ -432,6 +449,8 @@ begin
   Result := FHttp.ResponseText;
   if FHttp.Status = 200 then
     Error := -1 // good response code
+  else if (Redirect and FHttp.Status div 100 = 3) and (FHttp.Status <> 304) then //redirect
+    Result := HTTPRequest('GET', FHTTP.getResponseHeader('Location'), '', Url, Redirect, Error)
   else
     Error := FHttp.Status;
 end;
@@ -464,8 +483,8 @@ begin
 
   FLogin := Login;
   FPassword := Password;
-  FTestMode := false;
-  
+  FMode := amOld;
+
   // step 1
   Params := TStringList.Create;
   try
@@ -473,7 +492,7 @@ begin
     Params.Add('layout=popup');
     Params.Add('type=browser');
     Params.Add('settings=' + IntToStr(FPermisions));
-    Response := HTTPRequest('GET', API_LOGIN_URL, HTTPBuildRequestParams(Params), '', Error);
+    Response := HTTPRequest('GET', API_LOGIN_URL, HTTPBuildRequestParams(Params), '', true, Error);
   finally
     Params.Free;
   end;
@@ -497,7 +516,7 @@ begin
     Params.Add('email=' + FLogin);
     Params.Add('pass=' + FPassword);
     Params.Add('permanent=1');
-    Response := HTTPRequest('POST', 'http://login.vk.com', HTTPBuildRequestParams(Params), '', Error);
+    Response := HTTPRequest('POST', 'http://login.vk.com', HTTPBuildRequestParams(Params), '', true, Error);
   finally
     Params.Free;
   end;
@@ -522,7 +541,7 @@ begin
     Params.Add('m=4');
     Params.Add('permanent=1');
     Params.Add('s=' + s);
-    Response := HTTPRequest('POST', API_LOGIN_URL, HTTPBuildRequestParams(Params), '', Error);
+    Response := HTTPRequest('POST', API_LOGIN_URL, HTTPBuildRequestParams(Params), '', true, Error);
   finally
     Params.Free;
   end;
@@ -538,12 +557,12 @@ begin
     Error := SetError('Core', 'Login failed.', 3);
     exit;
   end;
-  
+
   // step 4
   Params := TStringList.Create;
   try
     Params.Add('vk=');
-    Response := HTTPRequest('GET', 'http://login.vk.com/', HTTPBuildRequestParams(Params), Referrer, Error);
+    Response := HTTPRequest('GET', 'http://login.vk.com/', HTTPBuildRequestParams(Params), Referrer, true, Error);
   finally
     Params.Free;
   end;
@@ -557,7 +576,7 @@ begin
   Params := TStringList.Create;
   try
     Params.Add('s=' + StrCut(Response, 'value=''', ''''));
-    Response := HTTPRequest('POST', 'http://vkontakte.ru/login.php?op=slogin', HTTPBuildRequestParams(Params), FHTTP.Option(1), Error);
+    Response := HTTPRequest('POST', 'http://vkontakte.ru/login.php?op=slogin', HTTPBuildRequestParams(Params), FHTTP.Option(1), true, Error);
   finally
     Params.Free;
   end;
@@ -574,7 +593,7 @@ begin
         Params.Add('app_settings_' + IntToStr(Perm) + '=1');
       Perm := Perm shl 1;
     end;
-    Response := HTTPRequest('POST', 'http://vkontakte.ru/apps.php?act=a_save_settings', HTTPBuildRequestParams(Params), Referrer, Error);
+    Response := HTTPRequest('POST', 'http://vkontakte.ru/apps.php?act=a_save_settings', HTTPBuildRequestParams(Params), Referrer, true, Error);
   finally
     Params.Free;
   end;
@@ -582,14 +601,84 @@ begin
     exit;
 
   FIsLoggedIn := pos('"result":', Response) > 0;
-  if not FIsLoggedIn then
+  if not FIsLoggedIn then begin
+    s := StrCut(Response, 'error":"', '"');
+    Error := SetError('Core', 'Login failed. ' + s, 5);
+  end;
+  Result := FIsLoggedIn;
+end;
+
+function TVKontakte.LoginOAuth(Login, Password, ClientId: String; Scope: String = ''): boolean;
+const
+  API_OAUTH_LOGIN_URL = 'http://oauth.vkontakte.ru/authorize';
+var
+  Params: TStringlist;
+  Response, app_hash, settings_hash, s, Referrer: String;
+  Error: Integer;
+  Perm: Longint;
+begin
+  //http://oauth.vkontakte.ru/authorize?client_id=2232793&scope=audio,wall&redirect_uri=blank.html&display=page&response_type=token
+  Result := false;
+  Error := -1;
+
+  FLogin := Login;
+  FPassword := Password;
+  FMode := amOAuth;
+
+  // step 1
+  Params := TStringList.Create;
+  try
+    Params.Add('client_id=' + ClientId);
+    Params.Add('scope=' + Scope);
+    Params.Add('redirect_uri=blank.html');
+    Params.Add('display=page');
+    Params.Add('response_type=token');
+    Response := HTTPRequest('GET', API_OAUTH_LOGIN_URL, HTTPBuildRequestParams(Params), '', true, Error);
+  finally
+    Params.Free;
+  end;
+  if Error >= 0 then
+    exit;
+
+  s := StrCut(Response, 'id="login_submit"', '</form>');
+  if s = '' then begin
+    Error := SetError('Core', 'Login failed.', 1);
+    exit;
+  end;
+
+  // step 2
+  Params := TStringList.Create;
+  try
+    Params.Add('q=' + StrCut(s, 'name="q" value="', '"'));
+    Params.Add('ip_h=' + StrCut(s, 'name="ip_h" value="', '"'));
+    Params.Add('from_host=' + StrCut(s, 'name="from_host" value="', '"'));
+    Params.Add('from_protocol=' + StrCut(s, 'name="from_protocol" value="', '"'));
+    Params.Add('to=' + StrCut(s, 'name="to" value="', '"'));
+    Params.Add('expire=' + '86400');
+    Params.Add('email=' + FLogin);
+    Params.Add('pass=' + FPassword);
+    HTTPRequest('POST', StrCut(s, 'action="', '"'), HTTPBuildRequestParams(Params), '', true, Error);
+  finally
+    Params.Free;
+  end;
+  if Error >= 0 then
+    exit;
+
+  Response := FHTTP.Option(1);
+  s := StrCut(Response, 'access_token=', '&');
+  FIsLoggedIn := s <> '';
+  if not FIsLoggedIn then begin
+    //s := StrCut(Response, 'error":"', '"');
     Error := SetError('Core', 'Login failed.', 5);
+  end
+  else
+    FAccessToken := s;
   Result := FIsLoggedIn;
 end;
 
 function TVKontakte.LoginTestMode(MID, Secret: String): boolean;
 begin
-  FTestMode := true;
+  FMode := amTest;
   FMID := MID;
   FSecret := Secret;
   FIsLoggedIn := true;
@@ -775,7 +864,7 @@ begin
 
   Params := TStringList.Create;
   if High(Args) >= 0 then
-    Params.Add('q=' + GetStrArg(Args, 0));
+    Params.Add('q=' + AnsiToUtf8(GetStrArg(Args, 0)));
   if High(Args) >= 1 then
     Params.Add('count=' + GetStrArg(Args, 1));
   if High(Args) >= 2 then
@@ -888,7 +977,7 @@ begin
   if not res then
     exit;
 
-  Result := GetTextByNode(FXMLDoc.SelectSingleNode('/response'), '') = '1';
+  Result := NodeExist(FXMLDoc.SelectSingleNode('/response'));//GetTextByNode(FXMLDoc.SelectSingleNode('/response'), '') = '1';
 end;
 
 function TVKontakte.APIPostOnWall(Args: array of const): boolean;
@@ -914,7 +1003,7 @@ begin
   if High(Args) >= 0 then
     Params.Add('owner_id=' + GetStrArg(Args, 0));
   if High(Args) >= 1 then
-    Params.Add('message=' + GetStrArg(Args, 1));
+    Params.Add('message=' + AnsiToUtf8(GetStrArg(Args, 1)));
   if High(Args) >= 4 then
     Params.Add('attachment=' + GetStrArg(Args, 2) + GetStrArg(Args, 3) + '_' + GetStrArg(Args, 4));
   if High(Args) >= 5 then

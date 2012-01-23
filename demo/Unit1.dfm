@@ -13,8 +13,8 @@ object Form1: TForm1
   OldCreateOrder = False
   OnCreate = FormCreate
   DesignSize = (
-    721
-    329)
+    713
+    325)
   PixelsPerInch = 96
   TextHeight = 13
   object Label1: TLabel
@@ -68,9 +68,9 @@ object Form1: TForm1
     TabOrder = 1
   end
   object Button1: TButton
-    Left = 96
+    Left = 120
     Top = 80
-    Width = 73
+    Width = 49
     Height = 25
     Caption = 'Login'
     TabOrder = 5
@@ -90,22 +90,22 @@ object Form1: TForm1
     Width = 537
     Height = 249
     Anchors = [akLeft, akTop, akRight, akBottom]
-    ScrollBars = ssVertical
+    ScrollBars = ssBoth
     TabOrder = 7
   end
   object RadioButton1: TRadioButton
     Left = 8
     Top = 80
-    Width = 81
+    Width = 113
     Height = 17
-    Caption = 'no browser'
+    Caption = 'OAuth (no browser)'
     TabOrder = 3
     OnClick = RadioButton1Click
   end
   object RadioButton2: TRadioButton
     Left = 8
     Top = 96
-    Width = 81
+    Width = 105
     Height = 17
     Caption = 'test mode'
     TabOrder = 4
