@@ -393,7 +393,7 @@ begin
     Error := SetError('HTTP', 'Could not set timeouts.', 3);
     exit;
   end;}  
-  //FHttp.Option(6) := Redirect; // Turn on/off automatic redirects
+  FHttp.Option(6) := false; // Turn off automatic redirects
   {if pos('#', URL) > 0 then
     Url := copy(Url, 1, pos('#', URL) - 1);}
   FHttp.Option(7) := 1; // disable url encode
@@ -1040,6 +1040,6 @@ v0.1.2
 
 v0.2.0
 [~] fixes: http redirect, http request convert to utf8
-[+] APIPostOnWall
+[+] OAuth
 }
 end.
